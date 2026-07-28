@@ -42,7 +42,16 @@ export default function HistoryPage() {
     XLSX.utils.book_append_sheet(wb, wsInv, "Investments");
 
     // Download
-    XLSX.writeFile(wb, `Shop_Report_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Shop_Report_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   // Combine and sort for the unified history feed

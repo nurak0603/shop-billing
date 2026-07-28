@@ -32,17 +32,21 @@ export default function Dashboard() {
 
   // Calculations
   const calcTotal = (items, filterFn) => {
-    return items.filter(item => filterFn(new Date(item.timestamp))).reduce((sum, item) => sum + (parseFloat(item.total || item.amount) || 0), 0);
+    return items
+      .filter(item => filterFn(new Date(item.timestamp)))
+      // Only include profit if it's NOT a 'paylater' method or if it's an investment/expense
+      .filter(item => item._type === 'investment' || item.method !== 'paylater')
+      .reduce((sum, item) => sum + (parseFloat(item.total || item.amount) || 0), 0);
   };
 
-  const salesToday = calcTotal(sales, isToday);
-  const salesWeek = calcTotal(sales, isThisWeek);
-  const salesMonth = calcTotal(sales, isThisMonth);
-  const salesYear = calcTotal(sales, isThisYear);
+  const salesToday = calcTotal(sales.map(s => ({...s, _type: 'sale'})), isToday);
+  const salesWeek = calcTotal(sales.map(s => ({...s, _type: 'sale'})), isThisWeek);
+  const salesMonth = calcTotal(sales.map(s => ({...s, _type: 'sale'})), isThisMonth);
+  const salesYear = calcTotal(sales.map(s => ({...s, _type: 'sale'})), isThisYear);
 
-  const invToday = calcTotal(investments, isToday);
-  const invMonth = calcTotal(investments, isThisMonth);
-  const invYear = calcTotal(investments, isThisYear);
+  const invToday = calcTotal(investments.map(i => ({...i, _type: 'investment'})), isToday);
+  const invMonth = calcTotal(investments.map(i => ({...i, _type: 'investment'})), isThisMonth);
+  const invYear = calcTotal(investments.map(i => ({...i, _type: 'investment'})), isThisYear);
 
   return (
     <div className="dashboard-container">

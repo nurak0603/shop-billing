@@ -9,7 +9,8 @@ export default function POS() {
   const [searchQuery, setSearchQuery] = useState('');
   const [scanning, setScanning] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
-  
+  const fileInputRef = useRef(null);
+
   // Custom Product State
   const [customName, setCustomName] = useState('');
   const [customPrice, setCustomPrice] = useState('');
@@ -33,10 +34,17 @@ export default function POS() {
     setCart((prev) => {
       const existing = prev.find(item => item.id === product.id || (product.isCustom && item.name === product.name));
       if (existing) {
-        return prev.map(item => item.id === existing.id ? { ...item, qty: item.qty + quantity } : item);
+        const newQty = Math.max(1, existing.qty + quantity);
+        return prev.map(item => item.id === existing.id ? { ...item, qty: newQty } : item);
       }
-      return [...prev, { ...product, qty: quantity, cartId: Date.now() + Math.random() }];
+      return [...prev, { ...product, qty: Math.max(1, quantity), cartId: Date.now() + Math.random() }];
     });
+  };
+
+  const updateQty = (cartId, delta) => {
+    setCart(prev => prev.map(item =>
+      item.cartId === cartId ? { ...item, qty: Math.max(1, item.qty + delta) } : item
+    ));
   };
 
   const removeFromCart = (cartId) => {
@@ -49,7 +57,12 @@ export default function POS() {
   const startScanner = () => {
     setScanning(true);
     setTimeout(() => {
-      const scanner = new Html5QrcodeScanner('reader', { fps: 10, qrbox: { width: 250, height: 250 } }, false);
+      const scanner = new Html5QrcodeScanner('reader', {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        rememberLastUsedCamera: true,
+        supportedScanTypes: [0] // Camera only for the scanner
+      }, false);
       scanner.render(async (decodedText) => {
         scanner.clear();
         setScanning(false);
@@ -57,12 +70,31 @@ export default function POS() {
         if (product) {
           addToCart(product);
         } else {
-          alert(`Barcode ${decodedText} not found in database! You can add it manually.`);
+          alert(`Barcode ${decodedText} not found in database!`);
         }
       }, (err) => {
         // ignore scan errors
       });
     }, 100);
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const { Html5Qrcode } = await import('html5-qrcode');
+    const html5QrCode = new Html5Qrcode("reader-hidden");
+    try {
+      const decodedText = await html5QrCode.scanFile(file, true);
+      const product = await getProductByBarcode(decodedText);
+      if (product) {
+        addToCart(product);
+      } else {
+        alert(`Barcode ${decodedText} not found in database!`);
+      }
+    } catch (err) {
+      alert("Could not recognize QR code from image.");
+    }
   };
 
   const handleManualAdd = () => {
@@ -132,10 +164,22 @@ export default function POS() {
             />
           </div>
         </div>
-        <button className="btn btn-primary" onClick={startScanner}>
-          <ScanLine /> Scan
+        <button className="btn btn-primary" onClick={startScanner} title="Scan using Camera">
+          <ScanLine />
         </button>
+        <button className="btn btn-outline" onClick={() => fileInputRef.current.click()} title="Upload QR Image">
+          <Plus />
+        </button>
+        <input
+          type="file"
+          ref={fileInputRef}
+          style={{ display: 'none' }}
+          accept="image/*"
+          onChange={handleFileUpload}
+        />
       </div>
+
+      <div id="reader-hidden" style={{ display: 'none' }}></div>
 
       {scanning && (
         <div className="card mb-4">
@@ -194,7 +238,12 @@ export default function POS() {
               <div key={item.cartId} className="flex justify-between items-center mb-3">
                 <div className="flex-1">
                   <div className="font-bold">{item.name}</div>
-                  <div className="text-secondary text-sm">₹{item.price} x {item.qty}</div>
+                  <div className="text-secondary text-sm">₹{item.price}</div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <button className="btn btn-outline" style={{ padding: '2px 8px' }} onClick={() => updateQty(item.cartId, -1)}>-</button>
+                    <span className="font-bold">{item.qty}</span>
+                    <button className="btn btn-outline" style={{ padding: '2px 8px' }} onClick={() => updateQty(item.cartId, 1)}>+</button>
+                  </div>
                 </div>
                 <div className="font-bold mr-4">₹{(parseFloat(item.price) * item.qty).toFixed(2)}</div>
                 <button className="btn btn-outline" style={{ color: 'var(--danger-color)', padding: '0.5rem' }} onClick={() => removeFromCart(item.cartId)}>
