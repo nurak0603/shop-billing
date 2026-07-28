@@ -24,19 +24,50 @@ export default function HistoryPage() {
 
   const handleExport = async () => {
     try {
+      const { getProducts, getCustomers } = await import('../store/db');
       const wb = XLSX.utils.book_new();
 
-      // Format Sales Data
-      const salesData = sales.map(s => ({
-        Date: format(new Date(s.timestamp), 'yyyy-MM-dd HH:mm'),
-        'Method': s.method,
-        'Total Amount': s.total,
-        'Items': s.items.map(i => `${i.name} (x${i.qty})`).join(', ')
-      }));
+      // 1. Format Sales Data
+      const salesData = sales.map(s => {
+        const totalCost = s.items.reduce((sum, i) => sum + ((i.costPrice || 0) * i.qty), 0);
+        return {
+          Date: format(new Date(s.timestamp), 'yyyy-MM-dd HH:mm'),
+          'Method': s.method,
+          'Total Amount': s.total,
+          'Total Cost': totalCost,
+          'Profit': (s.total - totalCost).toFixed(2),
+          'Items': s.items.map(i => `${i.name} (x${i.qty})`).join(', ')
+        };
+      });
       const wsSales = XLSX.utils.json_to_sheet(salesData);
-      XLSX.utils.book_append_sheet(wb, wsSales, "Sales");
+      XLSX.utils.book_append_sheet(wb, wsSales, "Sales History");
 
-      // Format Investments Data
+      // 2. Format Inventory Data
+      const products = await getProducts();
+      const inventoryData = products.map(p => ({
+        Name: p.name,
+        'Selling Price': p.price,
+        'Cost Price': p.costPrice || 0,
+        'Profit per Unit': (p.price - (p.costPrice || 0)).toFixed(2),
+        Barcode: p.barcode || 'N/A',
+        Keyword: p.keyword || ''
+      }));
+      const wsInventory = XLSX.utils.json_to_sheet(inventoryData);
+      XLSX.utils.book_append_sheet(wb, wsInventory, "Inventory");
+
+      // 3. Format Customer/PayLater Data
+      const customers = await getCustomers();
+      const customerData = customers.map(c => ({
+        Name: c.name,
+        Mobile: c.mobile,
+        Amount: c.amount,
+        'Due Date': format(new Date(c.dueDate), 'yyyy-MM-dd'),
+        Status: c.status
+      }));
+      const wsCustomers = XLSX.utils.json_to_sheet(customerData);
+      XLSX.utils.book_append_sheet(wb, wsCustomers, "Customers");
+
+      // 4. Format Investments Data
       const invData = investments.map(i => ({
         Date: format(new Date(i.timestamp), 'yyyy-MM-dd HH:mm'),
         'Description': i.title,
@@ -45,7 +76,7 @@ export default function HistoryPage() {
       const wsInv = XLSX.utils.json_to_sheet(invData);
       XLSX.utils.book_append_sheet(wb, wsInv, "Investments");
 
-      const fileName = `Shop_Report_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+      const fileName = `Shop_Full_Report_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
 
       if (Capacitor.isNativePlatform()) {
         // Native Export using Filesystem and Share

@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid'; // need to install uuid
 
 // Define tables (stores)
 const productsDB = localforage.createInstance({ name: 'shopBilling', storeName: 'products' });
+const barcodeIndexDB = localforage.createInstance({ name: 'shopBilling', storeName: 'barcodeIndex' });
 const salesDB = localforage.createInstance({ name: 'shopBilling', storeName: 'sales' });
 const customersDB = localforage.createInstance({ name: 'shopBilling', storeName: 'customers' });
 const investmentsDB = localforage.createInstance({ name: 'shopBilling', storeName: 'investments' });
@@ -12,6 +13,9 @@ export const addProduct = async (product) => {
   const id = uuidv4();
   const newProduct = { ...product, id };
   await productsDB.setItem(id, newProduct);
+  if (product.barcode) {
+    await barcodeIndexDB.setItem(product.barcode, id);
+  }
   return newProduct;
 };
 
@@ -24,12 +28,21 @@ export const getProducts = async () => {
 };
 
 export const getProductByBarcode = async (barcode) => {
+  const productId = await barcodeIndexDB.getItem(barcode);
+  if (productId) {
+    return await productsDB.getItem(productId);
+  }
+
+  // Fallback for old data without index
   let found = null;
   await productsDB.iterate((value) => {
     if (value.barcode === barcode) {
       found = value;
     }
   });
+  if (found) {
+    await barcodeIndexDB.setItem(barcode, found.id);
+  }
   return found;
 };
 

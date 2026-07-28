@@ -31,6 +31,15 @@ export default function Dashboard() {
   };
 
   // Calculations
+  const calcTotalProfit = (salesItems, filterFn) => {
+    return salesItems
+      .filter(sale => filterFn(new Date(sale.timestamp)))
+      .reduce((sum, sale) => {
+        const saleProfit = sale.items.reduce((p, item) => p + (parseFloat(item.price) - (parseFloat(item.costPrice) || 0)) * item.qty, 0);
+        return sum + saleProfit;
+      }, 0);
+  };
+
   const calcSalesTotal = (items, filterFn) => {
     return items
       .filter(item => filterFn(new Date(item.timestamp)))
@@ -61,10 +70,12 @@ export default function Dashboard() {
   const realizedMonth = calcRealizedTotal(sales, isThisMonth);
   const payLaterMonth = calcPayLaterTotal(sales, isThisMonth);
   const invMonth = calcInvTotal(investments, isThisMonth);
+  const profitMonth = calcTotalProfit(sales, isThisMonth);
 
   const salesToday = calcSalesTotal(sales, isToday);
   const salesWeek = calcSalesTotal(sales, isThisWeek);
   const salesYear = calcSalesTotal(sales, isThisYear);
+  const profitToday = calcTotalProfit(sales, isToday);
 
   return (
     <div className="dashboard-container">
@@ -72,65 +83,63 @@ export default function Dashboard() {
 
       <div className="grid-2-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '2rem' }}>
         <div className="card text-center" style={{ padding: '1rem' }}>
-          <div className="text-secondary text-sm mb-1">Today's Sales</div>
+          <div className="text-secondary text-sm mb-1">Today's Profit</div>
           <div className="text-2xl font-bold text-success flex items-center justify-center gap-1">
-            <TrendingUp size={20} /> ₹{salesToday.toFixed(0)}
+            <TrendingUp size={20} /> ₹{profitToday.toFixed(0)}
           </div>
         </div>
         <div className="card text-center" style={{ padding: '1rem' }}>
-          <div className="text-secondary text-sm mb-1">This Week</div>
-          <div className="text-xl font-bold">₹{salesWeek.toFixed(0)}</div>
+          <div className="text-secondary text-sm mb-1">Today's Sales</div>
+          <div className="text-xl font-bold">₹{salesToday.toFixed(0)}</div>
         </div>
         <div className="card text-center" style={{ padding: '1rem' }}>
-          <div className="text-secondary text-sm mb-1">This Month</div>
+          <div className="text-secondary text-sm mb-1">Monthly Profit</div>
+          <div className="text-xl font-bold">₹{profitMonth.toFixed(0)}</div>
+        </div>
+        <div className="card text-center" style={{ padding: '1rem' }}>
+          <div className="text-secondary text-sm mb-1">Monthly Sales</div>
           <div className="text-xl font-bold">₹{salesMonth.toFixed(0)}</div>
-        </div>
-        <div className="card text-center" style={{ padding: '1rem' }}>
-          <div className="text-secondary text-sm mb-1">This Year</div>
-          <div className="text-xl font-bold">₹{salesYear.toFixed(0)}</div>
         </div>
       </div>
 
       <div className="card mb-6" style={{ background: 'linear-gradient(135deg, var(--surface-color), rgba(59,130,246,0.1))' }}>
         <h3 className="mb-4">Monthly Overview</h3>
         <div className="flex justify-between items-center mb-2">
-          <span className="text-secondary">Total Sales (Inc. Pay Later)</span>
-          <span className="font-bold text-primary">₹{salesMonth.toFixed(2)}</span>
+          <span className="text-secondary">Sales Profit (Est.)</span>
+          <span className="font-bold text-success">+ ₹{profitMonth.toFixed(2)}</span>
         </div>
         <div className="flex justify-between items-center mb-2">
-          <span className="text-secondary">Realized Cash/UPI</span>
-          <span className="font-bold text-success">+ ₹{realizedMonth.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-secondary">Pending Pay Later</span>
-          <span className="font-bold text-warning">₹{payLaterMonth.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between items-center mb-4 pb-4" style={{ borderBottom: '1px solid var(--border-color)' }}>
-          <span className="text-secondary">Total Investments/Expenses</span>
+          <span className="text-secondary">Other Investments/Expenses</span>
           <span className="font-bold text-danger">- ₹{invMonth.toFixed(2)}</span>
         </div>
+        <div className="flex justify-between items-center mb-4 pb-4" style={{ borderBottom: '1px solid var(--border-color)' }}>
+          <span className="text-secondary">Net Realized Profit (Cash/UPI)</span>
+          <span className="font-bold text-primary">₹{(realizedMonth - invMonth).toFixed(2)}</span>
+        </div>
         <div className="flex justify-between items-center text-xl font-bold">
-          <span>Net Profit (Realized)</span>
-          <span className={(realizedMonth - invMonth) >= 0 ? 'text-success' : 'text-danger'}>
-            ₹{(realizedMonth - invMonth).toFixed(2)}
+          <span>Overall Business Growth</span>
+          <span className={(profitMonth - invMonth) >= 0 ? 'text-success' : 'text-danger'}>
+            ₹{(profitMonth - invMonth).toFixed(2)}
           </span>
         </div>
       </div>
 
       <div className="card mb-6">
-        <h3 className="mb-4">Add Product to Inventory</h3>
+        <h3 className="mb-4">Quick Add Product</h3>
         <form onSubmit={async (e) => {
           e.preventDefault();
           const { addProduct } = await import('../store/db');
           const target = e.target;
           await addProduct({
             name: target.name.value,
-            price: target.price.value,
+            price: parseFloat(target.price.value),
+            costPrice: parseFloat(target.costPrice.value || 0),
             keyword: target.keyword.value,
             barcode: target.barcode.value
           });
           target.reset();
           alert('Product added to inventory!');
+          loadData();
         }}>
           <div className="input-group">
             <label>Product Name</label>
@@ -138,17 +147,23 @@ export default function Dashboard() {
           </div>
           <div className="grid-2-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div className="input-group">
-              <label>Price (₹)</label>
-              <input type="number" name="price" className="input" required />
+              <label>Selling Price (₹)</label>
+              <input type="number" step="0.01" name="price" className="input" required />
             </div>
             <div className="input-group">
-              <label>Keyword</label>
-              <input type="text" name="keyword" className="input" />
+              <label>Cost Price (₹)</label>
+              <input type="number" step="0.01" name="costPrice" className="input" />
             </div>
           </div>
-          <div className="input-group">
-            <label>Barcode ID (Optional)</label>
-            <input type="text" name="barcode" className="input" />
+          <div className="grid-2-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div className="input-group">
+                <label>Keyword</label>
+                <input type="text" name="keyword" className="input" />
+            </div>
+            <div className="input-group">
+                <label>Barcode ID</label>
+                <input type="text" name="barcode" className="input" />
+            </div>
           </div>
           <button type="submit" className="btn btn-primary w-full mt-2">
             <Plus size={18} /> Save Product
@@ -171,6 +186,32 @@ export default function Dashboard() {
             <Plus size={18} /> Add Record
           </button>
         </form>
+      </div>
+
+      <div className="card mt-6" style={{ border: '1px dashed var(--border-color)' }}>
+        <h3 className="mb-4">System Diagnostics</h3>
+        <div className="flex gap-2">
+            <button className="btn btn-outline flex-1" onClick={async () => {
+                const { runStressTest } = await import('../utils/stressTest');
+                if (confirm('This will add 1000 products and 500 sales. Continue?')) {
+                    const time = await runStressTest();
+                    alert(`Test complete in ${time}s`);
+                    loadData();
+                }
+            }}>Run Stress Test</button>
+            <button className="btn btn-outline flex-1" style={{ color: 'var(--danger-color)' }} onClick={async () => {
+                if (confirm('DANGER: This will delete ALL data. Are you sure?')) {
+                    localStorage.clear();
+                    await Promise.all([
+                        import('localforage').then(lf => lf.createInstance({ name: 'shopBilling', storeName: 'products' }).clear()),
+                        import('localforage').then(lf => lf.createInstance({ name: 'shopBilling', storeName: 'sales' }).clear()),
+                        import('localforage').then(lf => lf.createInstance({ name: 'shopBilling', storeName: 'customers' }).clear()),
+                        import('localforage').then(lf => lf.createInstance({ name: 'shopBilling', storeName: 'investments' }).clear())
+                    ]);
+                    window.location.reload();
+                }
+            }}>Reset All Data</button>
+        </div>
       </div>
     </div>
   );

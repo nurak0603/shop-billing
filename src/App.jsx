@@ -1,12 +1,13 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
-import { ShoppingCart, Clock, LayoutDashboard, History } from 'lucide-react';
+import { ShoppingCart, Clock, LayoutDashboard, History, Package } from 'lucide-react';
 
 // Placeholders for Pages
 import POS from './pages/POS';
 import PayLater from './pages/PayLater';
 import Dashboard from './pages/Dashboard';
 import HistoryPage from './pages/HistoryPage';
+import Inventory from './pages/Inventory';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
             <Route path="/paylater" element={<PayLater />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/history" element={<HistoryPage />} />
+            <Route path="/inventory" element={<Inventory />} />
           </Routes>
         </div>
         
@@ -25,6 +27,10 @@ function App() {
           <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <ShoppingCart />
             <span>POS</span>
+          </NavLink>
+          <NavLink to="/inventory" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <Package />
+            <span>Inventory</span>
           </NavLink>
           <NavLink to="/paylater" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <Clock />

@@ -15,7 +15,9 @@ export default function POS() {
   const [customName, setCustomName] = useState('');
   const [customPrice, setCustomPrice] = useState('');
 
-  // Pay Later State
+  // Quick Add Modal State
+  const [quickAddModal, setQuickAddModal] = useState(null); // { barcode, name, price, costPrice }
+
   const [payMethod, setPayMethod] = useState('cash');
   const [customerName, setCustomerName] = useState('');
   const [customerMobile, setCustomerMobile] = useState('');
@@ -70,15 +72,7 @@ export default function POS() {
         if (product) {
           addToCart(product);
         } else {
-          const price = prompt(`Barcode "${decodedText}" not found.\nEnter price to add as "Unknown Item":`);
-          if (price && !isNaN(price)) {
-            addToCart({
-              id: 'unknown-' + Date.now(),
-              name: `Item (${decodedText})`,
-              price: parseFloat(price),
-              isCustom: true
-            });
-          }
+          setQuickAddModal({ barcode: decodedText, name: '', price: '', costPrice: '' });
         }
       }, (err) => {
         // ignore scan errors
@@ -98,15 +92,7 @@ export default function POS() {
       if (product) {
         addToCart(product);
       } else {
-        const price = prompt(`Barcode "${decodedText}" not found.\nEnter price to add as "Unknown Item":`);
-        if (price && !isNaN(price)) {
-          addToCart({
-            id: 'unknown-' + Date.now(),
-            name: `Item (${decodedText})`,
-            price: parseFloat(price),
-            isCustom: true
-          });
-        }
+        setQuickAddModal({ barcode: decodedText, name: '', price: '', costPrice: '' });
       }
     } catch (err) {
       alert("Could not recognize QR code from image.");
@@ -159,6 +145,23 @@ export default function POS() {
     setCart([]);
     setShowCheckout(false);
     alert('Sale completed successfully!');
+  };
+
+  const handleQuickAdd = async (e) => {
+    e.preventDefault();
+    if (!quickAddModal.name || !quickAddModal.price) return;
+
+    const newProd = {
+      name: quickAddModal.name,
+      price: parseFloat(quickAddModal.price),
+      costPrice: parseFloat(quickAddModal.costPrice || 0),
+      barcode: quickAddModal.barcode
+    };
+
+    const added = await addProduct(newProd);
+    addToCart(added);
+    setQuickAddModal(null);
+    loadProducts();
   };
 
   return (
@@ -257,7 +260,16 @@ export default function POS() {
                   <div className="text-secondary text-sm">₹{item.price}</div>
                   <div className="flex items-center gap-2 mt-1">
                     <button className="btn btn-outline" style={{ padding: '2px 8px' }} onClick={() => updateQty(item.cartId, -1)}>-</button>
-                    <span className="font-bold">{item.qty}</span>
+                    <input
+                      type="number"
+                      className="input"
+                      style={{ width: '60px', padding: '2px 5px', textAlign: 'center', height: '30px' }}
+                      value={item.qty}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 1;
+                        setCart(prev => prev.map(i => i.cartId === item.cartId ? { ...i, qty: Math.max(1, val) } : i));
+                      }}
+                    />
                     <button className="btn btn-outline" style={{ padding: '2px 8px' }} onClick={() => updateQty(item.cartId, 1)}>+</button>
                   </div>
                 </div>
@@ -277,6 +289,36 @@ export default function POS() {
           </div>
         )}
       </div>
+
+      {/* Quick Add Modal */}
+      {quickAddModal && (
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="card" style={{ width: '90%', maxWidth: '400px' }}>
+            <h3 className="text-xl mb-4">New Product Detected</h3>
+            <p className="mb-4 text-secondary text-sm">Barcode: {quickAddModal.barcode}</p>
+            <form onSubmit={handleQuickAdd}>
+              <div className="input-group">
+                <label>Product Name</label>
+                <input required type="text" className="input" value={quickAddModal.name} onChange={e => setQuickAddModal({...quickAddModal, name: e.target.value})} />
+              </div>
+              <div className="flex gap-2">
+                <div className="input-group flex-1">
+                    <label>Selling Price</label>
+                    <input required type="number" step="0.01" className="input" value={quickAddModal.price} onChange={e => setQuickAddModal({...quickAddModal, price: e.target.value})} />
+                </div>
+                <div className="input-group flex-1">
+                    <label>Cost Price</label>
+                    <input type="number" step="0.01" className="input" value={quickAddModal.costPrice} onChange={e => setQuickAddModal({...quickAddModal, costPrice: e.target.value})} />
+                </div>
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button type="button" className="btn btn-outline flex-1" onClick={() => setQuickAddModal(null)}>Cancel</button>
+                <button type="submit" className="btn btn-primary flex-1">Add & Add to Cart</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Checkout Modal */}
       {showCheckout && (
