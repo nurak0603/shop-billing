@@ -70,7 +70,15 @@ export default function POS() {
         if (product) {
           addToCart(product);
         } else {
-          alert(`Barcode ${decodedText} not found in database!`);
+          const price = prompt(`Barcode "${decodedText}" not found.\nEnter price to add as "Unknown Item":`);
+          if (price && !isNaN(price)) {
+            addToCart({
+              id: 'unknown-' + Date.now(),
+              name: `Item (${decodedText})`,
+              price: parseFloat(price),
+              isCustom: true
+            });
+          }
         }
       }, (err) => {
         // ignore scan errors
@@ -90,7 +98,15 @@ export default function POS() {
       if (product) {
         addToCart(product);
       } else {
-        alert(`Barcode ${decodedText} not found in database!`);
+        const price = prompt(`Barcode "${decodedText}" not found.\nEnter price to add as "Unknown Item":`);
+        if (price && !isNaN(price)) {
+          addToCart({
+            id: 'unknown-' + Date.now(),
+            name: `Item (${decodedText})`,
+            price: parseFloat(price),
+            isCustom: true
+          });
+        }
       }
     } catch (err) {
       alert("Could not recognize QR code from image.");

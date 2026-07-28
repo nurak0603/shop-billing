@@ -31,22 +31,40 @@ export default function Dashboard() {
   };
 
   // Calculations
-  const calcTotal = (items, filterFn) => {
+  const calcSalesTotal = (items, filterFn) => {
     return items
       .filter(item => filterFn(new Date(item.timestamp)))
-      // Only include profit if it's NOT a 'paylater' method or if it's an investment/expense
-      .filter(item => item._type === 'investment' || item.method !== 'paylater')
-      .reduce((sum, item) => sum + (parseFloat(item.total || item.amount) || 0), 0);
+      .reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
   };
 
-  const salesToday = calcTotal(sales.map(s => ({...s, _type: 'sale'})), isToday);
-  const salesWeek = calcTotal(sales.map(s => ({...s, _type: 'sale'})), isThisWeek);
-  const salesMonth = calcTotal(sales.map(s => ({...s, _type: 'sale'})), isThisMonth);
-  const salesYear = calcTotal(sales.map(s => ({...s, _type: 'sale'})), isThisYear);
+  const calcRealizedTotal = (items, filterFn) => {
+    return items
+      .filter(item => filterFn(new Date(item.timestamp)))
+      .filter(item => item.method !== 'paylater')
+      .reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
+  };
 
-  const invToday = calcTotal(investments.map(i => ({...i, _type: 'investment'})), isToday);
-  const invMonth = calcTotal(investments.map(i => ({...i, _type: 'investment'})), isThisMonth);
-  const invYear = calcTotal(investments.map(i => ({...i, _type: 'investment'})), isThisYear);
+  const calcPayLaterTotal = (items, filterFn) => {
+    return items
+      .filter(item => filterFn(new Date(item.timestamp)))
+      .filter(item => item.method === 'paylater')
+      .reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
+  };
+
+  const calcInvTotal = (items, filterFn) => {
+    return items
+      .filter(item => filterFn(new Date(item.timestamp)))
+      .reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+  };
+
+  const salesMonth = calcSalesTotal(sales, isThisMonth);
+  const realizedMonth = calcRealizedTotal(sales, isThisMonth);
+  const payLaterMonth = calcPayLaterTotal(sales, isThisMonth);
+  const invMonth = calcInvTotal(investments, isThisMonth);
+
+  const salesToday = calcSalesTotal(sales, isToday);
+  const salesWeek = calcSalesTotal(sales, isThisWeek);
+  const salesYear = calcSalesTotal(sales, isThisYear);
 
   return (
     <div className="dashboard-container">
@@ -74,19 +92,27 @@ export default function Dashboard() {
       </div>
 
       <div className="card mb-6" style={{ background: 'linear-gradient(135deg, var(--surface-color), rgba(59,130,246,0.1))' }}>
-        <h3 className="mb-4">Profit Overview (This Month)</h3>
+        <h3 className="mb-4">Monthly Overview</h3>
         <div className="flex justify-between items-center mb-2">
-          <span className="text-secondary">Total Sales</span>
-          <span className="font-bold text-success">+ ₹{salesMonth.toFixed(2)}</span>
+          <span className="text-secondary">Total Sales (Inc. Pay Later)</span>
+          <span className="font-bold text-primary">₹{salesMonth.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-secondary">Realized Cash/UPI</span>
+          <span className="font-bold text-success">+ ₹{realizedMonth.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-secondary">Pending Pay Later</span>
+          <span className="font-bold text-warning">₹{payLaterMonth.toFixed(2)}</span>
         </div>
         <div className="flex justify-between items-center mb-4 pb-4" style={{ borderBottom: '1px solid var(--border-color)' }}>
           <span className="text-secondary">Total Investments/Expenses</span>
           <span className="font-bold text-danger">- ₹{invMonth.toFixed(2)}</span>
         </div>
         <div className="flex justify-between items-center text-xl font-bold">
-          <span>Net Profit</span>
-          <span className={(salesMonth - invMonth) >= 0 ? 'text-success' : 'text-danger'}>
-            ₹{(salesMonth - invMonth).toFixed(2)}
+          <span>Net Profit (Realized)</span>
+          <span className={(realizedMonth - invMonth) >= 0 ? 'text-success' : 'text-danger'}>
+            ₹{(realizedMonth - invMonth).toFixed(2)}
           </span>
         </div>
       </div>

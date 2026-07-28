@@ -3,6 +3,9 @@ import { getSales, getInvestments } from '../store/db';
 import { format } from 'date-fns';
 import { Download, FileText, ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+import { Capacitor } from '@capacitor/core';
 
 export default function HistoryPage() {
   const [sales, setSales] = useState([]);
@@ -19,39 +22,64 @@ export default function HistoryPage() {
     setInvestments(i);
   };
 
-  const handleExport = () => {
-    const wb = XLSX.utils.book_new();
-    
-    // Format Sales Data
-    const salesData = sales.map(s => ({
-      Date: format(new Date(s.timestamp), 'yyyy-MM-dd HH:mm'),
-      'Method': s.method,
-      'Total Amount': s.total,
-      'Items': s.items.map(i => `${i.name} (x${i.qty})`).join(', ')
-    }));
-    const wsSales = XLSX.utils.json_to_sheet(salesData);
-    XLSX.utils.book_append_sheet(wb, wsSales, "Sales");
+  const handleExport = async () => {
+    try {
+      const wb = XLSX.utils.book_new();
 
-    // Format Investments Data
-    const invData = investments.map(i => ({
-      Date: format(new Date(i.timestamp), 'yyyy-MM-dd HH:mm'),
-      'Description': i.title,
-      'Amount': i.amount
-    }));
-    const wsInv = XLSX.utils.json_to_sheet(invData);
-    XLSX.utils.book_append_sheet(wb, wsInv, "Investments");
+      // Format Sales Data
+      const salesData = sales.map(s => ({
+        Date: format(new Date(s.timestamp), 'yyyy-MM-dd HH:mm'),
+        'Method': s.method,
+        'Total Amount': s.total,
+        'Items': s.items.map(i => `${i.name} (x${i.qty})`).join(', ')
+      }));
+      const wsSales = XLSX.utils.json_to_sheet(salesData);
+      XLSX.utils.book_append_sheet(wb, wsSales, "Sales");
 
-    // Download
-    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Shop_Report_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+      // Format Investments Data
+      const invData = investments.map(i => ({
+        Date: format(new Date(i.timestamp), 'yyyy-MM-dd HH:mm'),
+        'Description': i.title,
+        'Amount': i.amount
+      }));
+      const wsInv = XLSX.utils.json_to_sheet(invData);
+      XLSX.utils.book_append_sheet(wb, wsInv, "Investments");
+
+      const fileName = `Shop_Report_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+
+      if (Capacitor.isNativePlatform()) {
+        // Native Export using Filesystem and Share
+        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+
+        const result = await Filesystem.writeFile({
+          path: fileName,
+          data: excelBuffer,
+          directory: Directory.Cache // Use Cache for temporary sharing
+        });
+
+        await Share.share({
+          title: 'Shop Report',
+          text: 'Exported Shop Billing Report',
+          url: result.uri,
+          dialogTitle: 'Share Report'
+        });
+      } else {
+        // Web Export
+        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      console.error('Export failed', err);
+      alert('Failed to export file: ' + err.message);
+    }
   };
 
   // Combine and sort for the unified history feed
