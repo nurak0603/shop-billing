@@ -23,6 +23,11 @@ export default function POS() {
   const [customerMobile, setCustomerMobile] = useState('');
   const [dueDateDays, setDueDateDays] = useState('7');
 
+  // Bill Sharing State
+  const [showBillPrompt, setShowBillPrompt] = useState(false);
+  const [lastSale, setLastSale] = useState(null);
+  const [billMobile, setBillMobile] = useState('');
+
   useEffect(() => {
     loadProducts();
   }, []);
@@ -135,16 +140,37 @@ export default function POS() {
       });
     }
 
-    await addSale({
+    const saleData = {
       items: cart,
       total: cartTotal,
       method: payMethod,
       timestamp: Date.now()
-    });
+    };
 
+    const savedSale = await addSale(saleData);
+
+    setLastSale(savedSale);
+    setBillMobile(customerMobile); // Prefill if it was paylater
     setCart([]);
     setShowCheckout(false);
-    alert('Sale completed successfully!');
+    setShowBillPrompt(true);
+  };
+
+  const sendWhatsAppBill = () => {
+    if (!billMobile) {
+      alert("Please enter a mobile number.");
+      return;
+    }
+
+    let itemDetails = lastSale.items.map(item =>
+      `${item.name} x${item.qty} = ₹${(item.price * item.qty).toFixed(2)}`
+    ).join('\n');
+
+    const message = `*Bill from Our Shop*\nDate: ${new Date(lastSale.timestamp).toLocaleString()}\n\n*Items:*\n${itemDetails}\n\n*Total: ₹${lastSale.total.toFixed(2)}*\nPayment: ${lastSale.method.toUpperCase()}\n\nThank you for shopping with us!`;
+
+    const url = `https://wa.me/${billMobile}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+    setShowBillPrompt(false);
   };
 
   const handleQuickAdd = async (e) => {
@@ -356,6 +382,31 @@ export default function POS() {
             <div className="flex gap-2 mt-4">
               <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowCheckout(false)}>Cancel</button>
               <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleCheckout}>Complete</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Bill Prompt Modal */}
+      {showBillPrompt && (
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="card" style={{ width: '90%', maxWidth: '400px' }}>
+            <h3 className="text-xl mb-4">Sale Successful!</h3>
+            <p className="mb-4 text-secondary">Would you like to send the bill via WhatsApp?</p>
+
+            <div className="input-group">
+              <label>Customer Mobile Number</label>
+              <input
+                type="tel"
+                className="input"
+                placeholder="919876543210"
+                value={billMobile}
+                onChange={e => setBillMobile(e.target.value)}
+              />
+            </div>
+
+            <div className="flex gap-2 mt-4">
+              <button className="btn btn-outline flex-1" onClick={() => setShowBillPrompt(false)}>Skip</button>
+              <button className="btn btn-primary flex-1" onClick={sendWhatsAppBill}>Send Bill</button>
             </div>
           </div>
         </div>

@@ -1,13 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import { getSales, getInvestments, addInvestment } from '../store/db';
 import { isToday, isThisWeek, isThisMonth, isThisYear } from 'date-fns';
-import { TrendingUp, TrendingDown, DollarSign, Plus } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Plus, ScanLine } from 'lucide-react';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 
 export default function Dashboard() {
   const [sales, setSales] = useState([]);
   const [investments, setInvestments] = useState([]);
   const [invTitle, setInvTitle] = useState('');
   const [invAmount, setInvAmount] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const [barcodeValue, setBarcodeValue] = useState('');
+
+  const startScanner = () => {
+    setScanning(true);
+    setTimeout(() => {
+      const scanner = new Html5QrcodeScanner('reader-dashboard', {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        rememberLastUsedCamera: true,
+        supportedScanTypes: [0]
+      }, false);
+      scanner.render((decodedText) => {
+        setBarcodeValue(decodedText);
+        scanner.clear();
+        setScanning(false);
+      }, (err) => {
+        // ignore
+      });
+    }, 100);
+  };
 
   useEffect(() => {
     loadData();
@@ -137,6 +159,7 @@ export default function Dashboard() {
             keyword: target.keyword.value,
             barcode: target.barcode.value
           });
+          setBarcodeValue('');
           target.reset();
           alert('Product added to inventory!');
           loadData();
@@ -161,10 +184,27 @@ export default function Dashboard() {
                 <input type="text" name="keyword" className="input" />
             </div>
             <div className="input-group">
-                <label>Barcode ID</label>
-                <input type="text" name="barcode" className="input" />
+                <label className="flex justify-between items-center">
+                  Barcode ID
+                  <button type="button" onClick={startScanner} className="text-primary" style={{ padding: '0 4px' }}>
+                    <ScanLine size={16} />
+                  </button>
+                </label>
+                <input
+                  type="text"
+                  name="barcode"
+                  className="input"
+                  value={barcodeValue}
+                  onChange={(e) => setBarcodeValue(e.target.value)}
+                />
             </div>
           </div>
+          {scanning && (
+            <div className="mb-4">
+              <div id="reader-dashboard" width="100%"></div>
+              <button type="button" className="btn btn-outline w-full mt-2" onClick={() => setScanning(false)}>Cancel Scan</button>
+            </div>
+          )}
           <button type="submit" className="btn btn-primary w-full mt-2">
             <Plus size={18} /> Save Product
           </button>
