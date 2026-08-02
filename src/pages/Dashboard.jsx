@@ -101,7 +101,14 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard-container">
-      <h2 className="text-2xl font-bold mb-6">Business Dashboard</h2>
+      <div className="header-container">
+        <div>
+          <h2 className="text-2xl font-bold uppercase">Executive <span className="text-primary">Pulse</span></h2>
+        </div>
+        <div className="btn-icon" style={{ backgroundColor: 'var(--surface-color)' }}>
+          <TrendingUp size={20} className="text-primary" />
+        </div>
+      </div>
 
       <div className="grid-2-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '2rem' }}>
         <div className="card text-center" style={{ padding: '1rem' }}>

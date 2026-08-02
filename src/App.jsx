@@ -8,6 +8,7 @@ import PayLater from './pages/PayLater';
 import Dashboard from './pages/Dashboard';
 import HistoryPage from './pages/HistoryPage';
 import Inventory from './pages/Inventory';
+import Admin from './pages/Admin';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/history" element={<HistoryPage />} />
             <Route path="/inventory" element={<Inventory />} />
+            <Route path="/admin" element={<Admin />} />
           </Routes>
         </div>
         

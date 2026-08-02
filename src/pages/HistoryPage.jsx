@@ -121,10 +121,12 @@ export default function HistoryPage() {
 
   return (
     <div className="history-container">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">History</h2>
-        <button className="btn btn-primary" onClick={handleExport}>
-          <Download size={18} /> Export Excel
+      <div className="header-container">
+        <div>
+          <h2 className="text-2xl font-bold">Transactions <span className="text-primary">History</span></h2>
+        </div>
+        <button className="btn btn-outline btn-sm flex items-center gap-1" onClick={handleExport} style={{ padding: '0.5rem 0.75rem', borderRadius: '12px', borderColor: 'var(--primary-color)', color: 'var(--primary-color)' }}>
+          <Download size={14} /> Export
         </button>
       </div>
 

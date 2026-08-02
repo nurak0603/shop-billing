@@ -7,16 +7,27 @@ const barcodeIndexDB = localforage.createInstance({ name: 'shopBilling', storeNa
 const salesDB = localforage.createInstance({ name: 'shopBilling', storeName: 'sales' });
 const customersDB = localforage.createInstance({ name: 'shopBilling', storeName: 'customers' });
 const investmentsDB = localforage.createInstance({ name: 'shopBilling', storeName: 'investments' });
+const expensesDB = localforage.createInstance({ name: 'shopBilling', storeName: 'expenses' });
 
 // Products
 export const addProduct = async (product) => {
   const id = uuidv4();
-  const newProduct = { ...product, id };
+  const newProduct = { ...product, id, stock: product.stock || 0 };
   await productsDB.setItem(id, newProduct);
   if (product.barcode) {
     await barcodeIndexDB.setItem(product.barcode, id);
   }
   return newProduct;
+};
+
+export const updateProductStock = async (id, delta) => {
+  const product = await productsDB.getItem(id);
+  if (product) {
+    product.stock = (product.stock || 0) + delta;
+    await productsDB.setItem(id, product);
+    return product;
+  }
+  return null;
 };
 
 export const getProducts = async () => {
@@ -51,6 +62,16 @@ export const addSale = async (sale) => {
   const id = uuidv4();
   const newSale = { ...sale, id, timestamp: Date.now() };
   await salesDB.setItem(id, newSale);
+  
+  // Deduct stock for each sold item
+  if (sale.items && sale.items.length > 0) {
+    for (const item of sale.items) {
+      if (!item.isCustom) {
+        await updateProductStock(item.id, -item.qty);
+      }
+    }
+  }
+  
   return newSale;
 };
 
@@ -100,4 +121,20 @@ export const getInvestments = async () => {
     investments.push(value);
   });
   return investments.sort((a, b) => b.timestamp - a.timestamp);
+};
+
+// Expenses
+export const addExpense = async (expense) => {
+  const id = uuidv4();
+  const newExpense = { ...expense, id, timestamp: Date.now() };
+  await expensesDB.setItem(id, newExpense);
+  return newExpense;
+};
+
+export const getExpenses = async () => {
+  const expenses = [];
+  await expensesDB.iterate((value) => {
+    expenses.push(value);
+  });
+  return expenses.sort((a, b) => b.timestamp - a.timestamp);
 };

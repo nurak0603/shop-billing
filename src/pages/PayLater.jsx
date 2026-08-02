@@ -33,7 +33,11 @@ export default function PayLater() {
 
   return (
     <div className="paylater-container">
-      <h2 className="text-2xl font-bold mb-4">Pay Later Accounts</h2>
+      <div className="header-container">
+        <div>
+          <h2 className="text-2xl font-bold">Pay Later <span className="text-primary">Accounts</span></h2>
+        </div>
+      </div>
 
       <div className="mb-4">
         <h3 className="mb-2 text-xl">Pending Payments</h3>
