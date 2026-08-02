@@ -1,21 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { getProducts, addProduct, updateProductStock } from '../store/db';
-import { Package, Plus, Search, Download, Trash2, ArrowUpCircle } from 'lucide-react';
+import { Package, Plus, Search, Download, Trash2, Edit2, ScanLine } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { Capacitor } from '@capacitor/core';
 import { format } from 'date-fns';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 
 export default function Inventory() {
   const [products, setProducts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newProduct, setNewProduct] = useState({ name: '', price: '', costPrice: '', barcode: '', keyword: '', stock: '0' });
+  const [newProduct, setNewProduct] = useState({ name: '', price: '', costPrice: '', barcode: '', keyword: 'Electronics', stock: '0' });
+  const [scanning, setScanning] = useState(false);
 
-  // Stock update modal state
+  // Stock edit modal state
   const [stockModal, setStockModal] = useState(null); // holds product object
-  const [addStockAmount, setAddStockAmount] = useState('');
+  const [editStockAmount, setEditStockAmount] = useState('');
+
+  const categories = ['Electronics', 'Clothing', 'Grocery', 'Custom'];
 
   useEffect(() => {
     loadProducts();
@@ -24,6 +28,25 @@ export default function Inventory() {
   const loadProducts = async () => {
     const data = await getProducts();
     setProducts(data);
+  };
+
+  const startScanner = () => {
+    setScanning(true);
+    setTimeout(() => {
+      const scanner = new Html5QrcodeScanner('reader-inventory', {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        rememberLastUsedCamera: true,
+        supportedScanTypes: [0]
+      }, false);
+      scanner.render((decodedText) => {
+        setNewProduct(prev => ({ ...prev, barcode: decodedText }));
+        scanner.clear();
+        setScanning(false);
+      }, (err) => {
+        // ignore
+      });
+    }, 100);
   };
 
   const handleAddProduct = async (e) => {
@@ -35,18 +58,22 @@ export default function Inventory() {
       costPrice: parseFloat(newProduct.costPrice || 0),
       stock: parseInt(newProduct.stock || 0)
     });
-    setNewProduct({ name: '', price: '', costPrice: '', barcode: '', keyword: '', stock: '0' });
+    setNewProduct({ name: '', price: '', costPrice: '', barcode: '', keyword: 'Electronics', stock: '0' });
     setShowAddModal(false);
     loadProducts();
   };
 
   const handleUpdateStock = async (e) => {
     e.preventDefault();
-    if (!stockModal || !addStockAmount) return;
+    if (!stockModal || editStockAmount === '') return;
 
-    await updateProductStock(stockModal.id, parseInt(addStockAmount));
+    // The user wants to edit stock directly. We can calculate the delta.
+    const newStock = parseInt(editStockAmount);
+    const delta = newStock - (stockModal.stock || 0);
+    
+    await updateProductStock(stockModal.id, delta);
     setStockModal(null);
-    setAddStockAmount('');
+    setEditStockAmount('');
     loadProducts();
   };
 
@@ -54,12 +81,12 @@ export default function Inventory() {
     const fileName = `Inventory_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
     const data = products.map(p => ({
       Name: p.name,
+      'Category': p.keyword || '',
       'Selling Price': p.price,
       'Cost Price': p.costPrice || 0,
       'Stock': p.stock || 0,
       'Profit per Unit': (p.price - (p.costPrice || 0)).toFixed(2),
-      Barcode: p.barcode || 'N/A',
-      Keyword: p.keyword || ''
+      Barcode: p.barcode || 'N/A'
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -154,9 +181,12 @@ export default function Inventory() {
                   <button 
                     className="btn btn-outline btn-sm mt-1 flex gap-1 items-center" 
                     style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', borderColor: 'var(--primary-color)', color: 'var(--primary-color)' }}
-                    onClick={() => setStockModal(product)}
+                    onClick={() => {
+                      setStockModal(product);
+                      setEditStockAmount(product.stock || 0);
+                    }}
                   >
-                    <ArrowUpCircle size={14} /> Add Stock
+                    <Edit2 size={12} /> Edit Stock
                   </button>
               </div>
             </div>
@@ -190,10 +220,27 @@ export default function Inventory() {
                   <input required type="number" className="input" value={newProduct.stock} onChange={e => setNewProduct({...newProduct, stock: e.target.value})} />
                 </div>
                 <div className="input-group flex-1">
-                  <label>Barcode (Optional)</label>
-                  <input type="text" className="input" value={newProduct.barcode} onChange={e => setNewProduct({...newProduct, barcode: e.target.value})} />
+                  <label>Category</label>
+                  <select className="input" value={newProduct.keyword} onChange={e => setNewProduct({...newProduct, keyword: e.target.value})}>
+                    {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 </div>
               </div>
+              <div className="input-group">
+                <label className="flex justify-between items-center">
+                  Barcode (Optional)
+                  <button type="button" onClick={startScanner} className="text-primary" style={{ padding: '0 4px', background: 'none', border: 'none', cursor: 'pointer' }}>
+                    <ScanLine size={16} /> Scan
+                  </button>
+                </label>
+                <input type="text" className="input" value={newProduct.barcode} onChange={e => setNewProduct({...newProduct, barcode: e.target.value})} />
+              </div>
+              {scanning && (
+                <div className="mb-4">
+                  <div id="reader-inventory" width="100%"></div>
+                  <button type="button" className="btn btn-outline w-full mt-2" onClick={() => setScanning(false)}>Cancel Scan</button>
+                </div>
+              )}
               <div className="flex gap-2 mt-4">
                 <button type="button" className="btn btn-outline flex-1" onClick={() => setShowAddModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary flex-1">Save Product</button>
@@ -203,28 +250,28 @@ export default function Inventory() {
         </div>
       )}
 
-      {/* Add Stock Modal */}
+      {/* Edit Stock Modal */}
       {stockModal && (
         <div className="modal-overlay">
           <div className="card" style={{ width: '100%', maxWidth: '350px' }}>
-            <h3 className="text-xl mb-2 font-bold">Add Stock</h3>
-            <p className="text-secondary mb-4">Add new stock for <strong>{stockModal.name}</strong>. Current stock is {stockModal.stock || 0}.</p>
+            <h3 className="text-xl mb-2 font-bold">Edit Stock</h3>
+            <p className="text-secondary mb-4">Set the exact stock amount for <strong>{stockModal.name}</strong>.</p>
             <form onSubmit={handleUpdateStock}>
               <div className="input-group">
-                <label>Amount to Add</label>
+                <label>Current Stock: {stockModal.stock || 0}</label>
                 <input 
                   required 
                   type="number" 
                   className="input" 
-                  placeholder="e.g. 50" 
-                  value={addStockAmount} 
-                  onChange={e => setAddStockAmount(e.target.value)} 
+                  placeholder="Enter absolute stock value" 
+                  value={editStockAmount} 
+                  onChange={e => setEditStockAmount(e.target.value)} 
                   autoFocus
                 />
               </div>
               <div className="flex gap-2 mt-4">
-                <button type="button" className="btn btn-outline flex-1" onClick={() => { setStockModal(null); setAddStockAmount(''); }}>Cancel</button>
-                <button type="submit" className="btn btn-primary flex-1">Update Stock</button>
+                <button type="button" className="btn btn-outline flex-1" onClick={() => { setStockModal(null); setEditStockAmount(''); }}>Cancel</button>
+                <button type="submit" className="btn btn-primary flex-1">Save Stock</button>
               </div>
             </form>
           </div>

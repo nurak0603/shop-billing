@@ -229,7 +229,7 @@ export default function POS() {
                   <div className="font-semibold">{p.name}</div>
                   <div className="text-xs text-secondary mt-1">₹{p.price} | Stock: {p.stock || 0}</div>
                 </div>
-                <button className="btn btn-primary btn-sm" onClick={() => addToCart(p)}>Add</button>
+                <button className="btn btn-primary btn-sm" onClick={() => { addToCart(p); setSearchQuery(''); }}>Add</button>
               </div>
             ))}
             {filteredProducts.length === 0 && <div className="text-center text-sm py-4">No products found.</div>}
