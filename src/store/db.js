@@ -156,6 +156,91 @@ export const getExpenses = async () => {
   return expenses.sort((a, b) => b.timestamp - a.timestamp);
 };
 
+// ==========================================
+// BACKUP AND RESTORE (MIGRATION)
+// ==========================================
+
+export const exportFullDatabase = async () => {
+  const data = {
+    products: [],
+    sales: [],
+    customers: [],
+    investments: [],
+    expenses: [],
+    settings: []
+  };
+
+  await productsDB.iterate((value) => data.products.push(value));
+  await salesDB.iterate((value) => data.sales.push(value));
+  await customersDB.iterate((value) => data.customers.push(value));
+  await investmentsDB.iterate((value) => data.investments.push(value));
+  await expensesDB.iterate((value) => data.expenses.push(value));
+  await settingsDB.iterate((value, key) => data.settings.push({ key, value }));
+
+  return JSON.stringify(data);
+};
+
+export const importFullDatabase = async (jsonData) => {
+  try {
+    const data = JSON.parse(jsonData);
+
+    // Clear existing databases to ensure a clean restore
+    await productsDB.clear();
+    await salesDB.clear();
+    await customersDB.clear();
+    await investmentsDB.clear();
+    await expensesDB.clear();
+    await settingsDB.clear();
+
+    // Import products
+    if (data.products && Array.isArray(data.products)) {
+      for (const p of data.products) {
+        if (p.id) await productsDB.setItem(p.id, p);
+      }
+    }
+
+    // Import sales
+    if (data.sales && Array.isArray(data.sales)) {
+      for (const s of data.sales) {
+        if (s.id) await salesDB.setItem(s.id, s);
+      }
+    }
+
+    // Import customers
+    if (data.customers && Array.isArray(data.customers)) {
+      for (const c of data.customers) {
+        if (c.id) await customersDB.setItem(c.id, c);
+      }
+    }
+
+    // Import investments
+    if (data.investments && Array.isArray(data.investments)) {
+      for (const i of data.investments) {
+        if (i.id) await investmentsDB.setItem(i.id, i);
+      }
+    }
+
+    // Import expenses
+    if (data.expenses && Array.isArray(data.expenses)) {
+      for (const e of data.expenses) {
+        if (e.id) await expensesDB.setItem(e.id, e);
+      }
+    }
+
+    // Import settings
+    if (data.settings && Array.isArray(data.settings)) {
+      for (const s of data.settings) {
+        if (s.key) await settingsDB.setItem(s.key, s.value);
+      }
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Failed to import database:", error);
+    return false;
+  }
+};
+
 // Settings
 export const saveSetting = async (key, value) => {
   await settingsDB.setItem(key, value);

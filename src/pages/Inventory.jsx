@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getProducts, addProduct, updateProductStock } from '../store/db';
 import { Package, Plus, Search, Download, Trash2, Edit2, ScanLine } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import { Filesystem, Directory } from '@capacitor/filesystem';
-import { Share } from '@capacitor/share';
 import { Capacitor } from '@capacitor/core';
 import { format } from 'date-fns';
 import { Html5QrcodeScanner } from 'html5-qrcode';
@@ -80,34 +77,7 @@ export default function Inventory() {
     loadProducts();
   };
 
-  const exportInventory = async () => {
-    const fileName = `Inventory_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
-    const data = products.map(p => ({
-      Name: p.name,
-      'Category': p.keyword || '',
-      'Selling Price': p.price,
-      'Cost Price': p.costPrice || 0,
-      'Stock': p.stock || 0,
-      'Profit per Unit': (p.price - (p.costPrice || 0)).toFixed(2),
-      Barcode: p.barcode || 'N/A'
-    }));
 
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Inventory");
-
-    if (Capacitor.isNativePlatform()) {
-      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
-      const result = await Filesystem.writeFile({
-        path: fileName,
-        data: excelBuffer,
-        directory: Directory.Cache
-      });
-      await Share.share({ title: 'Inventory Export', url: result.uri });
-    } else {
-      XLSX.writeFile(wb, fileName);
-    }
-  };
 
   const filteredProducts = products.filter(p =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -122,9 +92,6 @@ export default function Inventory() {
       <div className="header-container">
         <div>
           <h2 className="text-2xl font-bold">Inventory <span className="text-primary">Portfolio</span></h2>
-        </div>
-        <div className="btn-icon" style={{ backgroundColor: 'var(--surface-color)', cursor: 'pointer' }} onClick={exportInventory}>
-          <Download size={20} className="text-primary" />
         </div>
       </div>
 

@@ -2,10 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { getSales, getInvestments } from '../store/db';
 import { format } from 'date-fns';
 import { Download, FileText, ArrowDownRight, ArrowUpRight } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import { Filesystem, Directory } from '@capacitor/filesystem';
-import { Share } from '@capacitor/share';
-import { Capacitor } from '@capacitor/core';
 
 export default function HistoryPage() {
   const [sales, setSales] = useState([]);
@@ -22,96 +18,7 @@ export default function HistoryPage() {
     setInvestments(i);
   };
 
-  const handleExport = async () => {
-    try {
-      const { getProducts, getCustomers } = await import('../store/db');
-      const wb = XLSX.utils.book_new();
 
-      // 1. Format Sales Data
-      const salesData = sales.map(s => {
-        const totalCost = s.items.reduce((sum, i) => sum + ((i.costPrice || 0) * i.qty), 0);
-        return {
-          Date: format(new Date(s.timestamp), 'yyyy-MM-dd HH:mm'),
-          'Method': s.method,
-          'Total Amount': s.total,
-          'Total Cost': totalCost,
-          'Profit': (s.total - totalCost).toFixed(2),
-          'Items': s.items.map(i => `${i.name} (x${i.qty})`).join(', ')
-        };
-      });
-      const wsSales = XLSX.utils.json_to_sheet(salesData);
-      XLSX.utils.book_append_sheet(wb, wsSales, "Sales History");
-
-      // 2. Format Inventory Data
-      const products = await getProducts();
-      const inventoryData = products.map(p => ({
-        Name: p.name,
-        'Selling Price': p.price,
-        'Cost Price': p.costPrice || 0,
-        'Profit per Unit': (p.price - (p.costPrice || 0)).toFixed(2),
-        Barcode: p.barcode || 'N/A',
-        Keyword: p.keyword || ''
-      }));
-      const wsInventory = XLSX.utils.json_to_sheet(inventoryData);
-      XLSX.utils.book_append_sheet(wb, wsInventory, "Inventory");
-
-      // 3. Format Customer/PayLater Data
-      const customers = await getCustomers();
-      const customerData = customers.map(c => ({
-        Name: c.name,
-        Mobile: c.mobile,
-        Amount: c.amount,
-        'Due Date': format(new Date(c.dueDate), 'yyyy-MM-dd'),
-        Status: c.status
-      }));
-      const wsCustomers = XLSX.utils.json_to_sheet(customerData);
-      XLSX.utils.book_append_sheet(wb, wsCustomers, "Customers");
-
-      // 4. Format Investments Data
-      const invData = investments.map(i => ({
-        Date: format(new Date(i.timestamp), 'yyyy-MM-dd HH:mm'),
-        'Description': i.title,
-        'Amount': i.amount
-      }));
-      const wsInv = XLSX.utils.json_to_sheet(invData);
-      XLSX.utils.book_append_sheet(wb, wsInv, "Investments");
-
-      const fileName = `Shop_Full_Report_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
-
-      if (Capacitor.isNativePlatform()) {
-        // Native Export using Filesystem and Share
-        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
-
-        const result = await Filesystem.writeFile({
-          path: fileName,
-          data: excelBuffer,
-          directory: Directory.Cache // Use Cache for temporary sharing
-        });
-
-        await Share.share({
-          title: 'Shop Report',
-          text: 'Exported Shop Billing Report',
-          url: result.uri,
-          dialogTitle: 'Share Report'
-        });
-      } else {
-        // Web Export
-        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-        const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }
-    } catch (err) {
-      console.error('Export failed', err);
-      alert('Failed to export file: ' + err.message);
-    }
-  };
 
   // Combine and sort for the unified history feed
   const historyFeed = [
@@ -125,9 +32,6 @@ export default function HistoryPage() {
         <div>
           <h2 className="text-2xl font-bold">Transactions <span className="text-primary">History</span></h2>
         </div>
-        <button className="btn btn-outline btn-sm flex items-center gap-1" onClick={handleExport} style={{ padding: '0.5rem 0.75rem', borderRadius: '12px', borderColor: 'var(--primary-color)', color: 'var(--primary-color)' }}>
-          <Download size={14} /> Export
-        </button>
       </div>
 
       <div className="history-list">

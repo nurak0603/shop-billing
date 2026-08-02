@@ -1,6 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { addExpense, getExpenses } from '../store/db';
-import { Lock, Coffee, Car, Home, Zap, Download, Trash2, ShieldCheck, Users } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { addExpense, getExpenses, exportFullDatabase, importFullDatabase } from '../store/db';
+import { Lock, Coffee, Car, Home, Zap, Download, Trash2, ShieldCheck, Users, Upload, FileJson, FileSpreadsheet } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+import { Capacitor } from '@capacitor/core';
+import { format } from 'date-fns';
 
 export default function Admin() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -9,6 +14,8 @@ export default function Admin() {
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseCategory, setExpenseCategory] = useState('food');
   const [upiId, setUpiId] = useState('');
+  
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -56,6 +63,141 @@ export default function Admin() {
     const { saveSetting } = await import('../store/db');
     await saveSetting('upiId', upiId);
     alert('UPI ID saved successfully!');
+  };
+
+  const handleExportBackup = async () => {
+    try {
+      const jsonString = await exportFullDatabase();
+      const fileName = `ShopBackup_${format(new Date(), 'yyyy-MM-dd')}.json`;
+      
+      if (Capacitor.isNativePlatform()) {
+        const result = await Filesystem.writeFile({
+          path: fileName,
+          data: jsonString,
+          directory: Directory.Cache,
+          encoding: 'utf8'
+        });
+        await Share.share({
+          title: 'Shop Database Backup',
+          url: result.uri
+        });
+      } else {
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      alert('Backup failed: ' + err.message);
+    }
+  };
+
+  const handleImportBackup = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (window.confirm('WARNING: Importing a backup will OVERWRITE all your current data. Are you sure you want to proceed?')) {
+      try {
+        const text = await file.text();
+        const success = await importFullDatabase(text);
+        if (success) {
+          alert('Backup restored successfully! The app will now reload.');
+          window.location.reload();
+        } else {
+          alert('Failed to restore backup. Invalid format.');
+        }
+      } catch (err) {
+        alert('Restore failed: ' + err.message);
+      }
+    }
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      const { getProducts, getCustomers, getSales, getInvestments } = await import('../store/db');
+      const wb = XLSX.utils.book_new();
+
+      // Sales
+      const sales = await getSales();
+      const salesData = sales.map(s => {
+        const totalCost = s.items.reduce((sum, i) => sum + ((i.costPrice || 0) * i.qty), 0);
+        return {
+          Date: format(new Date(s.timestamp), 'yyyy-MM-dd HH:mm'),
+          'Method': s.method,
+          'Total Amount': s.total,
+          'Total Cost': totalCost,
+          'Profit': (s.total - totalCost).toFixed(2),
+          'Items': s.items.map(i => `${i.name} (x${i.qty})`).join(', ')
+        };
+      });
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(salesData), "Sales History");
+
+      // Inventory
+      const products = await getProducts();
+      const inventoryData = products.map(p => ({
+        Name: p.name,
+        'Selling Price': p.price,
+        'Cost Price': p.costPrice || 0,
+        'Profit per Unit': (p.price - (p.costPrice || 0)).toFixed(2),
+        Barcode: p.barcode || 'N/A',
+        Keyword: p.keyword || ''
+      }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(inventoryData), "Inventory");
+
+      // Customers
+      const customers = await getCustomers();
+      const customerData = customers.map(c => ({
+        Name: c.name,
+        Mobile: c.mobile,
+        Amount: c.amount,
+        'Due Date': format(new Date(c.dueDate), 'yyyy-MM-dd'),
+        Status: c.status
+      }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(customerData), "Customers");
+
+      // Investments
+      const investments = await getInvestments();
+      const invData = investments.map(i => ({
+        Date: format(new Date(i.timestamp), 'yyyy-MM-dd HH:mm'),
+        'Description': i.title,
+        'Amount': i.amount
+      }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(invData), "Investments");
+
+      const fileName = `Shop_Full_Report_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+
+      if (Capacitor.isNativePlatform()) {
+        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+        const result = await Filesystem.writeFile({
+          path: fileName,
+          data: excelBuffer,
+          directory: Directory.Cache
+        });
+        await Share.share({ title: 'Shop Report', url: result.uri });
+      } else {
+        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      alert('Failed to export Excel: ' + err.message);
+    }
   };
 
   if (!isAuthenticated) {
@@ -167,6 +309,33 @@ export default function Admin() {
             Save
           </button>
         </form>
+      </div>
+
+      <div className="card mb-4">
+        <h3 className="mb-4 text-xl">Data Management</h3>
+        <p className="text-sm text-secondary mb-4">Export or import your complete shop database to safely migrate between devices or app versions. You can also export a full Excel report of all your data.</p>
+        
+        <div className="flex flex-col gap-3">
+          <div className="flex gap-2">
+            <button className="btn btn-primary flex-1 flex items-center justify-center gap-2" onClick={handleExportBackup}>
+              <FileJson size={18} /> Export Backup (JSON)
+            </button>
+            <button className="btn btn-outline flex-1 flex items-center justify-center gap-2" onClick={() => fileInputRef.current?.click()}>
+              <Upload size={18} /> Restore Backup
+            </button>
+            <input 
+              type="file" 
+              accept=".json" 
+              ref={fileInputRef} 
+              style={{ display: 'none' }} 
+              onChange={handleImportBackup} 
+            />
+          </div>
+          
+          <button className="btn btn-success flex items-center justify-center gap-2 w-full mt-2" onClick={handleExportExcel}>
+            <FileSpreadsheet size={18} /> Download Excel Report
+          </button>
+        </div>
       </div>
 
       <div className="card">
