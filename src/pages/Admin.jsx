@@ -8,16 +8,22 @@ export default function Admin() {
   const [expenses, setExpenses] = useState([]);
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseCategory, setExpenseCategory] = useState('food');
+  const [upiId, setUpiId] = useState('');
 
   useEffect(() => {
     if (isAuthenticated) {
-      loadExpenses();
+      loadData();
     }
   }, [isAuthenticated]);
 
-  const loadExpenses = async () => {
+  const loadData = async () => {
     const data = await getExpenses();
     setExpenses(data);
+    
+    // Dynamically import getSetting to avoid changing the top-level import for now
+    const { getSetting } = await import('../store/db');
+    const savedUpi = await getSetting('upiId');
+    if (savedUpi) setUpiId(savedUpi);
   };
 
   const handleLogin = (e) => {
@@ -37,11 +43,19 @@ export default function Admin() {
     await addExpense({
       category: expenseCategory,
       amount: parseFloat(expenseAmount),
-      date: new Date().toISOString()
+      date: new Date().toISOString(),
+      timestamp: Date.now()
     });
 
     setExpenseAmount('');
-    loadExpenses();
+    loadData();
+  };
+
+  const handleSaveUpi = async (e) => {
+    e.preventDefault();
+    const { saveSetting } = await import('../store/db');
+    await saveSetting('upiId', upiId);
+    alert('UPI ID saved successfully!');
   };
 
   if (!isAuthenticated) {
@@ -134,6 +148,24 @@ export default function Admin() {
               Add Record
             </button>
           </div>
+        </form>
+      </div>
+
+      <div className="card mb-4">
+        <h3 className="mb-4 text-xl">Payment Settings</h3>
+        <form onSubmit={handleSaveUpi} className="flex gap-2">
+          <div className="input-group" style={{ flex: 1, marginBottom: 0 }}>
+            <input 
+              type="text" 
+              className="input" 
+              placeholder="Enter UPI ID (e.g., store@ybl)" 
+              value={upiId}
+              onChange={(e) => setUpiId(e.target.value)}
+            />
+          </div>
+          <button type="submit" className="btn btn-success" style={{ padding: '0 1.5rem' }}>
+            Save
+          </button>
         </form>
       </div>
 

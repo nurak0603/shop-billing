@@ -8,6 +8,7 @@ const salesDB = localforage.createInstance({ name: 'shopBilling', storeName: 'sa
 const customersDB = localforage.createInstance({ name: 'shopBilling', storeName: 'customers' });
 const investmentsDB = localforage.createInstance({ name: 'shopBilling', storeName: 'investments' });
 const expensesDB = localforage.createInstance({ name: 'shopBilling', storeName: 'expenses' });
+const settingsDB = localforage.createInstance({ name: 'shopBilling', storeName: 'settings' });
 
 // Products
 export const addProduct = async (product) => {
@@ -20,12 +21,28 @@ export const addProduct = async (product) => {
   return newProduct;
 };
 
-export const updateProductStock = async (id, delta) => {
-  const product = await productsDB.getItem(id);
-  if (product) {
-    product.stock = (product.stock || 0) + delta;
-    await productsDB.setItem(id, product);
-    return product;
+export const updateProductStock = async (id, qtyChange) => {
+  const p = await productsDB.getItem(id);
+  if (p) {
+    p.stock = (p.stock || 0) + qtyChange;
+    await productsDB.setItem(id, p);
+  }
+};
+
+export const updateProductPrice = async (id, newPrice) => {
+  const p = await productsDB.getItem(id);
+  if (p) {
+    p.price = parseFloat(newPrice);
+    await productsDB.setItem(id, p);
+  }
+};
+
+export const updateProduct = async (id, updates) => {
+  const p = await productsDB.getItem(id);
+  if (p) {
+    const updated = { ...p, ...updates };
+    await productsDB.setItem(id, updated);
+    return updated;
   }
   return null;
 };
@@ -137,4 +154,13 @@ export const getExpenses = async () => {
     expenses.push(value);
   });
   return expenses.sort((a, b) => b.timestamp - a.timestamp);
+};
+
+// Settings
+export const saveSetting = async (key, value) => {
+  await settingsDB.setItem(key, value);
+};
+
+export const getSetting = async (key) => {
+  return await settingsDB.getItem(key);
 };

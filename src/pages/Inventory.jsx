@@ -12,14 +12,14 @@ export default function Inventory() {
   const [products, setProducts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newProduct, setNewProduct] = useState({ name: '', price: '', costPrice: '', barcode: '', keyword: 'Electronics', stock: '0' });
+  const [newProduct, setNewProduct] = useState({ name: '', price: '', costPrice: '', barcode: '', keyword: 'Grocery', stock: '0' });
   const [scanning, setScanning] = useState(false);
 
-  // Stock edit modal state
-  const [stockModal, setStockModal] = useState(null); // holds product object
-  const [editStockAmount, setEditStockAmount] = useState('');
+  // Edit modal state
+  const [editModal, setEditModal] = useState(null); // holds product object for ID reference
+  const [editProductData, setEditProductData] = useState({ name: '', price: '', costPrice: '', stock: '', keyword: '' });
 
-  const categories = ['Electronics', 'Clothing', 'Grocery', 'Custom'];
+  const categories = ['Grocery', 'Snacks', 'Drinks', 'Chocolates', 'Others', 'Custom'];
 
   useEffect(() => {
     loadProducts();
@@ -63,17 +63,20 @@ export default function Inventory() {
     loadProducts();
   };
 
-  const handleUpdateStock = async (e) => {
+  const handleUpdateProduct = async (e) => {
     e.preventDefault();
-    if (!stockModal || editStockAmount === '') return;
+    if (!editModal) return;
 
-    // The user wants to edit stock directly. We can calculate the delta.
-    const newStock = parseInt(editStockAmount);
-    const delta = newStock - (stockModal.stock || 0);
-    
-    await updateProductStock(stockModal.id, delta);
-    setStockModal(null);
-    setEditStockAmount('');
+    const { updateProduct } = await import('../store/db');
+    await updateProduct(editModal.id, {
+      name: editProductData.name,
+      price: parseFloat(editProductData.price),
+      costPrice: parseFloat(editProductData.costPrice || 0),
+      stock: parseInt(editProductData.stock || 0),
+      keyword: editProductData.keyword
+    });
+
+    setEditModal(null);
     loadProducts();
   };
 
@@ -182,11 +185,17 @@ export default function Inventory() {
                     className="btn btn-outline btn-sm mt-1 flex gap-1 items-center" 
                     style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', borderColor: 'var(--primary-color)', color: 'var(--primary-color)' }}
                     onClick={() => {
-                      setStockModal(product);
-                      setEditStockAmount(product.stock || 0);
+                      setEditModal(product);
+                      setEditProductData({
+                        name: product.name,
+                        price: product.price,
+                        costPrice: product.costPrice || 0,
+                        stock: product.stock || 0,
+                        keyword: product.keyword || 'Custom'
+                      });
                     }}
                   >
-                    <Edit2 size={12} /> Edit Stock
+                    <Edit2 size={12} /> Edit
                   </button>
               </div>
             </div>
@@ -250,28 +259,41 @@ export default function Inventory() {
         </div>
       )}
 
-      {/* Edit Stock Modal */}
-      {stockModal && (
+      {/* Edit Product Modal */}
+      {editModal && (
         <div className="modal-overlay">
-          <div className="card" style={{ width: '100%', maxWidth: '350px' }}>
-            <h3 className="text-xl mb-2 font-bold">Edit Stock</h3>
-            <p className="text-secondary mb-4">Set the exact stock amount for <strong>{stockModal.name}</strong>.</p>
-            <form onSubmit={handleUpdateStock}>
+          <div className="card" style={{ width: '100%', maxWidth: '400px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 className="text-xl mb-4 font-bold">Edit Product</h3>
+            <form onSubmit={handleUpdateProduct}>
               <div className="input-group">
-                <label>Current Stock: {stockModal.stock || 0}</label>
-                <input 
-                  required 
-                  type="number" 
-                  className="input" 
-                  placeholder="Enter absolute stock value" 
-                  value={editStockAmount} 
-                  onChange={e => setEditStockAmount(e.target.value)} 
-                  autoFocus
-                />
+                <label>Product Name*</label>
+                <input required type="text" className="input" value={editProductData.name} onChange={e => setEditProductData({...editProductData, name: e.target.value})} />
+              </div>
+              <div className="flex gap-2">
+                <div className="input-group flex-1">
+                    <label>Selling Price (₹)*</label>
+                    <input required type="number" step="0.01" className="input" value={editProductData.price} onChange={e => setEditProductData({...editProductData, price: e.target.value})} />
+                </div>
+                <div className="input-group flex-1">
+                    <label>Cost Price (₹)</label>
+                    <input type="number" step="0.01" className="input" value={editProductData.costPrice} onChange={e => setEditProductData({...editProductData, costPrice: e.target.value})} />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <div className="input-group flex-1">
+                  <label>Initial Stock*</label>
+                  <input required type="number" className="input" value={editProductData.stock} onChange={e => setEditProductData({...editProductData, stock: e.target.value})} />
+                </div>
+                <div className="input-group flex-1">
+                  <label>Category</label>
+                  <select className="input" value={editProductData.keyword} onChange={e => setEditProductData({...editProductData, keyword: e.target.value})}>
+                    {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
               </div>
               <div className="flex gap-2 mt-4">
-                <button type="button" className="btn btn-outline flex-1" onClick={() => { setStockModal(null); setEditStockAmount(''); }}>Cancel</button>
-                <button type="submit" className="btn btn-primary flex-1">Save Stock</button>
+                <button type="button" className="btn btn-outline flex-1" onClick={() => setEditModal(null)}>Cancel</button>
+                <button type="submit" className="btn btn-primary flex-1">Save Changes</button>
               </div>
             </form>
           </div>

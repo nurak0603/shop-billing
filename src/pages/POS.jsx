@@ -28,15 +28,21 @@ export default function POS() {
 
   // Quick Access Category
   const [activeCategory, setActiveCategory] = useState('All');
-  const categories = ['All', 'Electronics', 'Clothing', 'Grocery', 'Custom'];
+  const categories = ['All', 'Grocery', 'Snacks', 'Drinks', 'Chocolates', 'Others', 'Custom'];
+  
+  // Settings
+  const [upiId, setUpiId] = useState('');
 
   useEffect(() => {
     loadProducts();
   }, []);
 
   const loadProducts = async () => {
+    const { getSetting } = await import('../store/db');
     const prods = await getProducts();
     setProducts(prods);
+    const savedUpi = await getSetting('upiId');
+    if (savedUpi) setUpiId(savedUpi);
   };
 
   const addToCart = (product, quantity = 1) => {
@@ -88,7 +94,7 @@ export default function POS() {
         if (product) {
           addToCart(product);
         } else {
-          setQuickAddModal({ barcode: decodedText, name: '', price: '', costPrice: '', stock: '0' });
+          setQuickAddModal({ barcode: decodedText, name: '', price: '', keyword: '' });
         }
       }, (err) => {
         // ignore
@@ -154,9 +160,9 @@ export default function POS() {
     const newProd = {
       name: quickAddModal.name,
       price: parseFloat(quickAddModal.price),
-      costPrice: parseFloat(quickAddModal.costPrice || 0),
       barcode: quickAddModal.barcode,
-      stock: parseInt(quickAddModal.stock || 0)
+      stock: 0,
+      keyword: quickAddModal.keyword || 'Custom'
     };
 
     const added = await addProduct(newProd);
@@ -200,7 +206,7 @@ export default function POS() {
         <button className="btn btn-outline" style={{ borderRadius: '999px', padding: '0 1rem' }} onClick={startScanner} title="Scan">
           <ScanLine size={18} />
         </button>
-        <button className="btn btn-primary" style={{ borderRadius: '999px', padding: '0 1rem' }} onClick={() => setQuickAddModal({ name: '', price: '', costPrice: '', barcode: '', stock: '0' })} title="Quick Add">
+        <button className="btn btn-primary" style={{ borderRadius: '999px', padding: '0 1rem' }} onClick={() => setQuickAddModal({ name: '', price: '', barcode: '', keyword: '' })} title="Quick Add">
           <Plus size={18} />
         </button>
       </div>
@@ -214,22 +220,24 @@ export default function POS() {
 
       {/* Cart Area */}
       <div className="card flex flex-col" style={{ minHeight: '300px' }}>
-        {cart.length === 0 && !searchQuery ? (
+        {cart.length === 0 && !searchQuery && activeCategory === 'All' ? (
           <div className="flex flex-col items-center justify-center flex-1 text-secondary opacity-70">
             <ShoppingCart size={48} className="mb-4" />
             <h3 className="text-lg font-semibold">Cart is empty</h3>
             <p className="text-sm">Scan a barcode or search for items to begin a transaction.</p>
           </div>
-        ) : searchQuery ? (
+        ) : (searchQuery || activeCategory !== 'All') ? (
           <div className="flex-1 overflow-y-auto">
-            <h4 className="mb-2 text-sm text-secondary uppercase tracking-wider font-semibold">Search Results</h4>
+            <h4 className="mb-2 text-sm text-secondary uppercase tracking-wider font-semibold">
+              {searchQuery ? 'Search Results' : `${activeCategory} Products`}
+            </h4>
             {filteredProducts.map(p => (
               <div key={p.id} className="flex justify-between items-center mb-2" style={{ padding: '0.75rem 0', borderBottom: '1px solid var(--border-color)' }}>
                 <div>
                   <div className="font-semibold">{p.name}</div>
                   <div className="text-xs text-secondary mt-1">₹{p.price} | Stock: {p.stock || 0}</div>
                 </div>
-                <button className="btn btn-primary btn-sm" onClick={() => { addToCart(p); setSearchQuery(''); }}>Add</button>
+                <button className="btn btn-primary btn-sm" onClick={() => { addToCart(p); setSearchQuery(''); setActiveCategory('All'); }}>Add</button>
               </div>
             ))}
             {filteredProducts.length === 0 && <div className="text-center text-sm py-4">No products found.</div>}
@@ -306,12 +314,15 @@ export default function POS() {
               </div>
               <div className="flex gap-2">
                 <div className="input-group flex-1">
-                    <label>Price*</label>
-                    <input required type="number" step="0.01" className="input" value={quickAddModal.price} onChange={e => setQuickAddModal({...quickAddModal, price: e.target.value})} />
+                  <label>Price*</label>
+                  <input required type="number" step="0.01" className="input" value={quickAddModal.price} onChange={e => setQuickAddModal({...quickAddModal, price: e.target.value})} />
                 </div>
                 <div className="input-group flex-1">
-                    <label>Initial Stock</label>
-                    <input type="number" className="input" value={quickAddModal.stock} onChange={e => setQuickAddModal({...quickAddModal, stock: e.target.value})} />
+                  <label>Category (Optional)</label>
+                  <select className="input" value={quickAddModal.keyword} onChange={e => setQuickAddModal({...quickAddModal, keyword: e.target.value})}>
+                    <option value="">Select...</option>
+                    {categories.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 </div>
               </div>
               <div className="flex gap-2 mt-4">
@@ -338,7 +349,6 @@ export default function POS() {
               <select className="input" value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
                 <option value="cash">Cash</option>
                 <option value="gpay">UPI / Wallet</option>
-                <option value="card">Card</option>
                 <option value="paylater">Pay Later (Credit)</option>
               </select>
             </div>
@@ -356,6 +366,20 @@ export default function POS() {
                 <div className="input-group">
                   <label>Due in (Days)</label>
                   <input type="number" className="input" value={dueDateDays} onChange={e => setDueDateDays(e.target.value)} />
+                </div>
+              </div>
+            )}
+
+            {payMethod === 'gpay' && upiId && (
+              <div className="text-center mb-6">
+                <div className="text-sm text-secondary mb-2">Scan to Pay via UPI</div>
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=${upiId}&pn=Store&am=${cartTotal.toFixed(2)}&cu=INR&tn=ShopBill`} 
+                  alt="UPI QR Code" 
+                  style={{ margin: '0 auto', borderRadius: '8px', border: '1px solid var(--border-color)', padding: '0.5rem', background: '#fff' }}
+                />
+                <div className="text-xs text-secondary mt-2">
+                  Amount: ₹{cartTotal.toFixed(2)}
                 </div>
               </div>
             )}
