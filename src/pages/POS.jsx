@@ -20,6 +20,7 @@ export default function POS() {
   const [customerName, setCustomerName] = useState('');
   const [customerMobile, setCustomerMobile] = useState('');
   const [dueDateDays, setDueDateDays] = useState('7');
+  const [splitAmountPaidNow, setSplitAmountPaidNow] = useState('');
 
   // Bill Sharing State
   const [showBillPrompt, setShowBillPrompt] = useState(false);
@@ -111,19 +112,31 @@ export default function POS() {
   const handleCheckout = async () => {
     if (cart.length === 0) return;
 
-    if (payMethod === 'paylater') {
+    if (payMethod === 'paylater' || payMethod === 'split') {
       if (!customerName || !customerMobile) {
-        alert("Please enter customer details for Pay Later.");
+        alert("Please enter customer details for Pay Later / Split.");
         return;
       }
-      const { addCustomer } = await import('../store/db');
-      const due = Date.now() + (parseInt(dueDateDays) * 24 * 60 * 60 * 1000);
-      await addCustomer({
-        name: customerName,
-        mobile: customerMobile,
-        dueDate: due,
-        amount: cartTotal
-      });
+      let payLaterAmount = cartTotal;
+      if (payMethod === 'split') {
+        const paidNow = parseFloat(splitAmountPaidNow);
+        if (isNaN(paidNow) || paidNow < 0 || paidNow > cartTotal) {
+          alert("Please enter a valid amount paid now (cannot exceed total).");
+          return;
+        }
+        payLaterAmount = cartTotal - paidNow;
+      }
+
+      if (payLaterAmount > 0) {
+        const { addCustomer } = await import('../store/db');
+        const due = Date.now() + (parseInt(dueDateDays) * 24 * 60 * 60 * 1000);
+        await addCustomer({
+          name: customerName,
+          mobile: customerMobile,
+          dueDate: due,
+          amount: payLaterAmount
+        });
+      }
     }
 
     const saleData = {
@@ -140,6 +153,7 @@ export default function POS() {
     setCart([]);
     setShowCheckout(false);
     setShowBillPrompt(true);
+    setSplitAmountPaidNow('');
     loadProducts(); // Refresh stock
   };
 
@@ -350,10 +364,11 @@ export default function POS() {
                 <option value="cash">Cash</option>
                 <option value="gpay">UPI / Wallet</option>
                 <option value="paylater">Pay Later (Credit)</option>
+                <option value="split">Split Payment (Cash + Credit)</option>
               </select>
             </div>
 
-            {payMethod === 'paylater' && (
+            {(payMethod === 'paylater' || payMethod === 'split') && (
               <div className="glass" style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)', marginBottom: '1.5rem' }}>
                 <div className="input-group">
                   <label>Customer Name*</label>
@@ -363,6 +378,12 @@ export default function POS() {
                   <label>Mobile Number*</label>
                   <input type="tel" className="input" value={customerMobile} onChange={e => setCustomerMobile(e.target.value)} />
                 </div>
+                {payMethod === 'split' && (
+                  <div className="input-group">
+                    <label>Amount Paid Now (Cash)*</label>
+                    <input type="number" step="0.01" className="input" value={splitAmountPaidNow} onChange={e => setSplitAmountPaidNow(e.target.value)} />
+                  </div>
+                )}
                 <div className="input-group">
                   <label>Due in (Days)</label>
                   <input type="number" className="input" value={dueDateDays} onChange={e => setDueDateDays(e.target.value)} />
